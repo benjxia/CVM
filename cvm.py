@@ -1,13 +1,13 @@
 import simpleaudio as sa
-from scipy import io
-from scipy.signal import butter, lfilter
+from scipy import io, signal
+from scipy.signal import butter, lfilter, get_window
 from sklearn.cluster import KMeans
 import numpy as np
 
-import sys
-import argparse
 
-from pydub import AudioSegment, effects
+import argparse
+import librosa
+from pydub import AudioSegment
 
 """
 Program specs
@@ -17,7 +17,6 @@ Bass boost
 """
 
 
-# Shitty bass boosting from chatgpt lmao
 def butter_lowpass(cutoff, fs, order=5):
     nyquist = 0.5 * fs
     normal_cutoff = cutoff / nyquist
@@ -40,6 +39,7 @@ def bass_boost(audio_np_array, sample_rate, bass_gain=6, cutoff_frequency=200):
 
     return boosted_audio.astype(np.int16)
 
+
 def apply_kmeans(audio_np_array, num_clusters=2):
     # Reshape audio data to 2D array for clustering
     data_2d = audio_np_array.reshape(-1, 1)
@@ -56,6 +56,7 @@ def apply_kmeans(audio_np_array, num_clusters=2):
 
     return clustered_audio.astype(np.int16)
 
+
 def change_speed(audio_np_array, playback_rate):
     audio = AudioSegment.from_file(audio_np_array)
 
@@ -63,27 +64,86 @@ def change_speed(audio_np_array, playback_rate):
 
     return np.array(changed_audio.get_array_of_samples())
 
+
+def pitch_shift(audio_np_array, pitch_shift, sample_rate):
+    # Determine the FFT size (preferably a power of 2 for efficiency)
+    fft_size = 2048
+
+    # Calculate the hop size (e.g., 1/4 of the FFT size)
+    hop_size = int(fft_size / 4)
+
+    # Calculate the window function (e.g., Hanning window)
+    window = get_window('hann', fft_size, fftbins=True)
+
+    # Determine the number of frames
+    num_frames = int(np.ceil(len(audio_np_array) / hop_size))
+
+    # Initialize the pitch-shifted audio array as float64 to handle both integer and floating-point values
+    shifted_audio = np.zeros(len(audio_np_array), dtype=np.float64)
+
+    # Iterate over frames
+    for i in range(num_frames):
+        # Calculate frame boundaries
+        start = i * hop_size
+        end = min(len(audio_np_array), start + fft_size)
+
+        # Extract the current frame
+        frame = np.zeros(fft_size)
+        frame[:end-start] = audio_np_array[start:end] * window[:end-start]
+
+        # Perform FFT
+        spectrum = np.fft.fft(frame)
+
+        # Modify the phase according to the pitch shift
+        shift_factor = 2 ** (pitch_shift / 12)  # Convert semitones to a frequency ratio
+        spectrum_shifted = np.roll(spectrum, int((fft_size / 2) * (shift_factor - 1)))
+
+        # Inverse FFT
+        frame_shifted = np.real(np.fft.ifft(spectrum_shifted))
+
+        # Ensure frame_shifted has the same length as the hop size
+        frame_shifted = frame_shifted[:hop_size]
+
+        # Overlap-add
+        shifted_audio[start:start+hop_size] += frame_shifted * window[:hop_size]
+
+
+    # Convert the shifted_audio to int16 after all operations are completed
+    shifted_audio = shifted_audio.astype(np.int16)
+
+    return shifted_audio
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-f', '--filename', type=str, help='Specify the file name.', required=True)
-    parser.add_argument('-b', '--bass', type=float, help='Specify the constant to alter the bass of the track.')
-    parser.add_argument('-s', '--speed', type=float, help='Specify the scalar constant to change the speed of the track.')
+    parser.add_argument('-f', '--filename', type=str, help='Specify the file name. Must be a .wav file.', required=True)
+    parser.add_argument('-b', '--bass', type=float, help='Specify the constant to alter the bass of the track. Max: 50 to protect your own ears.')
+    parser.add_argument('-s', '--speed', type=float,
+                        help='Specify the scalar constant to change the speed of the track.')
     parser.add_argument('-p', '--pitch', type=float, help='Specify the constant to shift the pitch of the track.')
     parser.add_argument('-d', '--deepfry', type=int, help='Specify the constant for deep fried mic.')
 
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
+    # Load audio file from
     sample_rate, audio_data = io.wavfile.read(args.filename)
     audio_buffer: np.ndarray = audio_data.astype(np.int16)
 
     if args.speed is not None:
-        # the way this is implemented means speed always has to change first
+        if args.speed <= 0:
+            raise ValueError("Speed multiplier must be greater than 0. Stop trying to time travel.")
         audio_buffer = change_speed(args.filename, args.speed)
+
     if args.bass is not None:
-        audio_buffer = bass_boost(audio_buffer, sample_rate, bass_gain=args.bass, cutoff_frequency=200)
-    #if args.pitch is not None:
-        #implement pitch shift
+        if args.bass < 0:
+            raise ValueError("Bass value must be at least 0.")
+
+        audio_buffer = bass_boost(audio_buffer, sample_rate, bass_gain=min(args.bass, 50), cutoff_frequency=100)
+
+    if args.pitch is not None:
+        audio_buffer = librosa.effects.pitch_shift(audio_buffer.astype(np.float32), sr=sample_rate, n_steps=args.pitch).astype(np.int16)
+
     if args.deepfry is not None:
         audio_buffer = apply_kmeans(audio_buffer, num_clusters=args.deepfry)
 
