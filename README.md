@@ -12,7 +12,8 @@ The Crappy Voice Modulator (CVM) Program allows you to input any .wav file and a
 ### Directions
 1. You to have Python installed in order to run the program.
 2. Using any environment of your choice (VSCode, Eclipse, etc.), open a terminal and navigate to where the "cvm.py" file is located.
-3. Use the following command:
+3. Import a .wav file of your choice (if you are using VSCode, simply drag and drop the file into the folder system).
+4. Use the following command:
     ```python cvm.py -f [string] -b [float] -s [float] -p [float] -d [float]```
    
     -f represents the filename; enter it as 'your_filename.wav'
