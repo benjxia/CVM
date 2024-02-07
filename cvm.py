@@ -1,10 +1,10 @@
-import simpleaudio as sa
 from scipy import io, signal
 from scipy.signal import butter, lfilter, get_window
 from sklearn.cluster import KMeans
 import numpy as np
+import datetime
 
-
+import simpleaudio as sa
 import argparse
 import librosa
 from pydub import AudioSegment
@@ -89,7 +89,7 @@ def pitch_shift(audio_np_array, pitch_shift, sample_rate):
 
         # Extract the current frame
         frame = np.zeros(fft_size)
-        frame[:end-start] = audio_np_array[start:end] * window[:end-start]
+        frame[:end - start] = audio_np_array[start:end] * window[:end - start]
 
         # Perform FFT
         spectrum = np.fft.fft(frame)
@@ -105,8 +105,7 @@ def pitch_shift(audio_np_array, pitch_shift, sample_rate):
         frame_shifted = frame_shifted[:hop_size]
 
         # Overlap-add
-        shifted_audio[start:start+hop_size] += frame_shifted * window[:hop_size]
-
+        shifted_audio[start:start + hop_size] += frame_shifted * window[:hop_size]
 
     # Convert the shifted_audio to int16 after all operations are completed
     shifted_audio = shifted_audio.astype(np.int16)
@@ -118,11 +117,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-f', '--filename', type=str, help='Specify the file name. Must be a .wav file.', required=True)
-    parser.add_argument('-b', '--bass', type=float, help='Specify the constant to alter the bass of the track. Max: 50 to protect your own ears.')
+    parser.add_argument('-b', '--bass', type=float,
+                        help='Specify the constant to alter the bass of the track. Max: 50 to protect your own ears.')
     parser.add_argument('-s', '--speed', type=float,
                         help='Specify the scalar constant to change the speed of the track.')
     parser.add_argument('-p', '--pitch', type=float, help='Specify the constant to shift the pitch of the track.')
     parser.add_argument('-d', '--deepfry', type=int, help='Specify the constant for deep fried mic.')
+    parser.add_argument('-o', '--out', type=str, help='Specify filename to save edited audio with.')
 
     args: argparse.Namespace = parser.parse_args()
 
@@ -142,10 +143,19 @@ if __name__ == '__main__':
         audio_buffer = bass_boost(audio_buffer, sample_rate, bass_gain=min(args.bass, 50), cutoff_frequency=100)
 
     if args.pitch is not None:
-        audio_buffer = librosa.effects.pitch_shift(audio_buffer.astype(np.float32), sr=sample_rate, n_steps=args.pitch).astype(np.int16)
+        audio_buffer = librosa.effects.pitch_shift(audio_buffer.astype(np.float32), sr=sample_rate,
+                                                   n_steps=args.pitch).astype(np.int16)
 
     if args.deepfry is not None:
         audio_buffer = apply_kmeans(audio_buffer, num_clusters=args.deepfry)
 
+    print("Playing audio...")
     play_obj = sa.play_buffer(audio_buffer, 1, 2, sample_rate)
     play_obj.wait_done()
+
+    if args.out is not None:
+        outfile = args.out
+    else:
+        outfile = f'cvm.wav'
+
+    io.wavfile.write(outfile, sample_rate, audio_buffer)
