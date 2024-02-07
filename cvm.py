@@ -7,6 +7,9 @@ import numpy as np
 import sys
 import argparse
 
+from pydub import AudioSegment, effects
+import librosa
+
 """
 Program specs
 Ability to change sample rate
@@ -54,8 +57,22 @@ def apply_kmeans(audio_np_array, num_clusters=2):
 
     return clustered_audio.astype(np.int16)
 
+def change_speed(input_file, playback_rate):
+    audio = AudioSegment.from_file(input_file)
+
+    changed_audio = audio.speedup(playback_speed=playback_rate)
+
+    audio_data = changed_audio.raw_data
+    sample_width = changed_audio.sample_width
+    channels = changed_audio.channels
+    frame_rate = changed_audio.frame_rate
+
+    playback_obj = sa.play_buffer(audio_data, num_channels=channels, bytes_per_sample=sample_width, sample_rate=frame_rate)
+
+    playback_obj.wait_done()
+
+
 if __name__ == '__main__':
-    # TODO: add argument parsing
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-f', '--filename', type=str, help='Specify the file name.', required=True)
@@ -71,13 +88,14 @@ if __name__ == '__main__':
 
     if args.bass is not None:
         audio_buffer = bass_boost(audio_buffer, sample_rate, bass_gain=args.bass, cutoff_frequency=200)
-    #if args.speed is not None:
-        # implement speed change
+        play_obj = sa.play_buffer(audio_buffer, 1, 2, sample_rate)
+        play_obj.wait_done()
+    if args.speed is not None:
+        change_speed(args.filename, args.speed)
     #if args.pitch is not None:
         # implement pitch shift
     if args.deepfry is not None:
         audio_buffer = apply_kmeans(audio_buffer, num_clusters=args.deepfry)
+        play_obj = sa.play_buffer(audio_buffer, 1, 2, sample_rate)
+        play_obj.wait_done()
 
-    play_obj = sa.play_buffer(audio_buffer, 1, 2, sample_rate)
-
-    play_obj.wait_done()
