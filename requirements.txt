@@ -2,3 +2,5 @@ simpleaudio
 scipy
 numpy
 scikit-learn
+pydub
+librosa
