@@ -1,3 +1,4 @@
 simpleaudio
 scipy
 numpy
+scikit-learn

@@ -58,13 +58,26 @@ if __name__ == '__main__':
     # TODO: add argument parsing
     parser = argparse.ArgumentParser()
 
-    filename = 'Recording.wav'
+    parser.add_argument('-f', '--filename', type=str, help='Specify the file name.', required=True)
+    parser.add_argument('-b', '--bass', type=float, help='Specify the constant to alter the bass of the track.')
+    parser.add_argument('-s', '--speed', type=float, help='Specify the scalar constant to change the speed of the track.')
+    parser.add_argument('-p', '--pitch', type=float, help='Specify the constant to shift the pitch of the track.')
+    parser.add_argument('-d', '--deepfry', type=float, help='Specify the constant for deep fried mic.')
 
-    sample_rate, audio_data = io.wavfile.read(filename)
+    args = parser.parse_args()
+
+    sample_rate, audio_data = io.wavfile.read(args.filename)
     audio_buffer: np.ndarray = audio_data.astype(np.int16)
-    # audio_buffer = bass_boost(audio_buffer, sample_rate, bass_gain=10, cutoff_frequency=200)
 
-    audio_buffer = apply_kmeans(audio_buffer, num_clusters=5)
+    if args.bass is not None:
+        audio_buffer = bass_boost(audio_buffer, sample_rate, bass_gain=args.bass, cutoff_frequency=200)
+    #if args.speed is not None:
+        # implement speed change
+    #if args.pitch is not None:
+        # implement pitch shift
+    if args.deepfry is not None:
+        audio_buffer = apply_kmeans(audio_buffer, num_clusters=5)
+
     play_obj = sa.play_buffer(audio_buffer, 1, 2, sample_rate)
 
     play_obj.wait_done()
