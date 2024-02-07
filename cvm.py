@@ -62,7 +62,7 @@ if __name__ == '__main__':
     parser.add_argument('-b', '--bass', type=float, help='Specify the constant to alter the bass of the track.')
     parser.add_argument('-s', '--speed', type=float, help='Specify the scalar constant to change the speed of the track.')
     parser.add_argument('-p', '--pitch', type=float, help='Specify the constant to shift the pitch of the track.')
-    parser.add_argument('-d', '--deepfry', type=float, help='Specify the constant for deep fried mic.')
+    parser.add_argument('-d', '--deepfry', type=int, help='Specify the constant for deep fried mic.')
 
     args = parser.parse_args()
 
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     #if args.pitch is not None:
         # implement pitch shift
     if args.deepfry is not None:
-        audio_buffer = apply_kmeans(audio_buffer, num_clusters=5)
+        audio_buffer = apply_kmeans(audio_buffer, num_clusters=args.deepfry)
 
     play_obj = sa.play_buffer(audio_buffer, 1, 2, sample_rate)
 
