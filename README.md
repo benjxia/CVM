@@ -31,7 +31,6 @@ You can use the command with all of the arguments or just a select few.
 The only argument that is required is the -f (filename) argument.
 
 For example, if you only want to speed up the track, you can use the following command:
-
     ```python cvm.py -f 'your_filename.wav' -s 2```
 
 This command should play back the .wav file at 2x the speed.
