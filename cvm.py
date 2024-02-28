@@ -9,6 +9,10 @@ import argparse
 import librosa
 from pydub import AudioSegment
 
+from pathlib import Path
+import soundfile as sf
+import psola
+
 """
 Program specs
 Ability to change sample rate
@@ -112,6 +116,42 @@ def pitch_shift(audio_np_array, pitch_shift, sample_rate):
 
     return shifted_audio
 
+    def autotune(y, sr):
+        # autotune function
+        # track pitch
+        frame_length = 2048
+        hop_length  =frame_length // 4
+        fmin = librosa.note_to_hz('C2')
+        fmax = librosa.note_to_hz('C7')
+        f0, _, _ = librosa.pyin(y, frame_length=frame_length, hop_length=hop_length, sr=sr, fmin=fmin, fmax=fmax)
+
+        # calculate desired pitch
+        # correct_pitch function
+        corrected_f0 = np.zeros_like(f0)
+        for i in range(f0.shape[0]):
+            if (np.isnan(corrected_f0[i])):
+                corrected_f0[i] = np.nan
+            else:
+                degrees = librosa.key_to_degrees('C:min')
+                degrees = np.concatenate((degrees, [degrees[0] + 12]))
+
+                midi_note = librosa.hz_to_midi(f0)
+                degree = midi_note % 12
+                closest_degree_id = np.argmin(np.abs(degrees - degree))
+
+                degree_difference = degree - degrees[closest_degree_id]
+
+                midi_note -= degree_difference
+
+                corrected_f0[i] = librosa.midi_to_hz(midi_note)
+
+        smoothed_corrected_f0 = signal.medfilt(corrected_f0, kernel_size=11)
+        
+        smoothed_corrected_f0[np.isnan(smoothed_corrected_f0)] = corrected_f0[np.isnan(smoothed_corrected_f0)]
+
+        # pitch shifting
+        return psola.vocode(y, sample_rate=int(sr), target_pitch=smoothed_corrected_f0, fmin=fmin, fmax=fmax)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -124,6 +164,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--pitch', type=float, help='Specify the constant to shift the pitch of the track.')
     parser.add_argument('-d', '--deepfry', type=int, help='Specify the constant for deep fried mic.')
     parser.add_argument('-o', '--out', type=str, help='Specify filename to save edited audio with.')
+    parser.add_argument('-a', '--autotune', type=float, help='Specify the pitch (in Hz) to be tuned to.') # outdated: this was for my original implementation but it has changed since then
 
     args: argparse.Namespace = parser.parse_args()
 
@@ -148,6 +189,16 @@ if __name__ == '__main__':
 
     if args.deepfry is not None:
         audio_buffer = apply_kmeans(audio_buffer, num_clusters=args.deepfry)
+
+    if args.autotune is not None:        
+        y, sr = librosa.load(args.filename, sr=None, mono=False)
+
+        if y.ndim > 1:
+            y = y[0, :]
+        
+        filepath = Path(args.filename)
+        output_filepath = filepath.parent / (filepath.stem + "_autotune" + filepath.suffix)
+        sf.write(str(output_filepath), autotune(y, sr), sr)
 
     print("Playing audio...")
     play_obj = sa.play_buffer(audio_buffer, 1, 2, sample_rate)

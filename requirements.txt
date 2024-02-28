@@ -3,4 +3,4 @@ scipy~=1.11.4
 numpy~=1.26.3
 scikit-learn~=1.4.0
 pydub~=0.25.1
-sklearn~=0.0.post1
+psola
