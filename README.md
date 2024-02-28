@@ -19,12 +19,13 @@ The Crappy Voice Modulator (CVM) Program allows you to input any .wav file and a
 6. Install the required libraries by typing in the following command. <br/>
     ```pip install -r requirements.txt```
 7. Finally, to use the program, run the following command and fill in the brackets with your desired values: <br/>
-    ```python cvm.py -f [string] -b [float] -s [float] -p [float] -d [int]```
-    <br/>-f represents the filename; enter it as 'your_filename.wav'
+    ```python cvm.py -f [string] -b [float] -s [float] -p [float] -d [int] -o [string]```
+    <br/>-f represents the filename; enter it as `your_filename.wav`
     <br/>-b represents the bass boost; enter any integer/decimal value
     <br/>-s represents the speed; enter any integer/decimal value greater than 0
     <br/>-p represents the pitch; enter any integer/decimal value
     <br/>-d represents the deep fried mic option; enter any integer value greater than 0
+    <br/>-o represents the file to output your edited audio to; enter it as `output_filename.wav`
    
 You can use the command with all of the arguments or just a select few. <br/>
 The only argument that is required is the -f (filename) argument. <br/>
