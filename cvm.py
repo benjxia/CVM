@@ -2,15 +2,12 @@ from scipy import io, signal
 from scipy.signal import butter, lfilter, get_window
 from sklearn.cluster import KMeans
 import numpy as np
-import datetime
 
 import simpleaudio as sa
 import argparse
 import librosa
 from pydub import AudioSegment
 
-from pathlib import Path
-import soundfile as sf
 import psola
 
 """
@@ -70,58 +67,39 @@ def change_speed(audio_np_array, playback_rate):
 
 
 def pitch_shift(audio_np_array, pitch_shift, sample_rate):
-    # Determine the FFT size (preferably a power of 2 for efficiency)
-    fft_size = 2048
-
-    # Calculate the hop size (e.g., 1/4 of the FFT size)
-    hop_size = int(fft_size / 4)
-
-    # Calculate the window function (e.g., Hanning window)
-    window = get_window('hann', fft_size, fftbins=True)
-
-    # Determine the number of frames
-    num_frames = int(np.ceil(len(audio_np_array) / hop_size))
-
-    # Initialize the pitch-shifted audio array as float64 to handle both integer and floating-point values
+    fft_size = 2048 # Fast-Fourier Transform size
+    hop_size = int(fft_size / 4) # Hop size should be 1/4 FFT size
+    window = get_window('hann', fft_size, fftbins=True) # Window function
+    num_frames = int(np.ceil(len(audio_np_array) / hop_size)) # Number of frames
     shifted_audio = np.zeros(len(audio_np_array), dtype=np.float64)
 
-    # Iterate over frames
     for i in range(num_frames):
-        # Calculate frame boundaries
+        # Get current frame boundary/Extract frame
         start = i * hop_size
         end = min(len(audio_np_array), start + fft_size)
-
-        # Extract the current frame
         frame = np.zeros(fft_size)
         frame[:end - start] = audio_np_array[start:end] * window[:end - start]
 
-        # Perform FFT
         spectrum = np.fft.fft(frame)
-
-        # Modify the phase according to the pitch shift
         shift_factor = 2 ** (pitch_shift / 12)  # Convert semitones to a frequency ratio
         spectrum_shifted = np.roll(spectrum, int((fft_size / 2) * (shift_factor - 1)))
-
-        # Inverse FFT
-        frame_shifted = np.real(np.fft.ifft(spectrum_shifted))
-
-        # Ensure frame_shifted has the same length as the hop size
-        frame_shifted = frame_shifted[:hop_size]
+        frame_shifted = np.real(np.fft.ifft(spectrum_shifted)) # Invert fft
+        frame_shifted = frame_shifted[:hop_size] # Fix frame length to hop size
 
         # Overlap-add
         shifted_audio[start:start + hop_size] += frame_shifted * window[:hop_size]
 
-    # Convert the shifted_audio to int16 after all operations are completed
+    # Convert the shifted_audio back to standard int16 format
     shifted_audio = shifted_audio.astype(np.int16)
 
     return shifted_audio
 
-def autotune(audio_data_float, sr):
+def autotune(audio_data_float, sr, scale='C:maj'):
     # autotune function
     # track pitch
     frame_length = 2048
     hop_length  = frame_length // 4
-    fmin = librosa.note_to_hz('C2')
+    fmin = librosa.note_to_hz('C')
     fmax = librosa.note_to_hz('C7')
     f0, _, _ = librosa.pyin(audio_data_float,
                             frame_length=frame_length,
@@ -134,14 +112,15 @@ def autotune(audio_data_float, sr):
     # correct_pitch function
     corrected_f0 = np.zeros_like(f0)
     corrected_f0[np.isnan(corrected_f0)] = np.nan
-    degrees = librosa.key_to_degrees('C:min')
+    degrees = librosa.key_to_degrees(scale)
     degrees = np.concatenate((degrees, [degrees[0] + 12]))
 
+    # Convert frequency into a note for midi purposes and set pitch to that of nearest note in user specified scale :)
     midi_note = librosa.hz_to_midi(f0)
     degree = midi_note % 12
     closest_degree_id = np.argmin(np.abs(degrees[None, :] - degree[:, None]), axis=1)
     degree_difference = degree - degrees[closest_degree_id]
-
+    # set pitch of current snippet to nearest note
     midi_note -= degree_difference
     corrected_f0[~np.isnan(f0)] = librosa.midi_to_hz(midi_note)[~np.isnan(f0)]
 
@@ -149,17 +128,16 @@ def autotune(audio_data_float, sr):
 
     smoothed_corrected_f0[np.isnan(smoothed_corrected_f0)] = corrected_f0[np.isnan(smoothed_corrected_f0)]
 
+    audio_data = psola.vocode(audio_data_float, sample_rate=int(sr), target_pitch=smoothed_corrected_f0, fmin=fmin, fmax=fmax)
     # pitch shifting
-    return psola.vocode(audio_data_float, sample_rate=int(sr), target_pitch=smoothed_corrected_f0, fmin=fmin, fmax=fmax)
+    return (audio_data * 32768).astype(np.int16)
 
-def read_midi(filename: str):
-    pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-f', '--filename', type=str, help='Specify the file name. Must be a .wav file.', required=True)
-    parser.add_argument('-a', '--autotune', type=str, help='Specify filename of MIDI file to autotune your voice with')
+    parser.add_argument('-a', '--autotune', type=str, help='Specify scale to tune your voice against. Should be in the form TONIC:key (e.g. C:maj for C major, C:min for C minor)')
     parser.add_argument('-b', '--bass', type=float,
                         help='Specify the constant to alter the bass of the track. Max: 50 to protect your own ears.')
     parser.add_argument('-s', '--speed', type=float,
@@ -172,6 +150,12 @@ if __name__ == '__main__':
     # Load audio file from
     sample_rate, audio_data = io.wavfile.read(args.filename)
     audio_buffer: np.ndarray = audio_data.astype(np.int16)
+
+    # Set file to save edited audio to. cvm.wav by default
+    if args.out is not None:
+        outfile = args.out
+    else:
+        outfile = f'cvm.wav'
 
     if args.speed is not None:
         if args.speed <= 0:
@@ -192,22 +176,11 @@ if __name__ == '__main__':
         audio_buffer = apply_kmeans(audio_buffer, num_clusters=args.deepfry)
 
     if args.autotune is not None:
-        audio_data_float, sr = librosa.load(args.filename, sr=None, mono=False)
-
-        if audio_data_float.ndim > 1:
-            audio_data_float = audio_data_float[0, :]
-
-        filepath = Path(args.filename)
-        # output_filepath = filepath.parent / (filepath.stem + "_autotune" + filepath.suffix)
-        sf.write(str('test.wav'), autotune(audio_data_float, sr), sr)
+        audio_data_float = librosa.util.buf_to_float(audio_buffer)
+        audio_buffer = autotune(audio_data_float, sample_rate, args.autotune).astype(np.int16)
 
     print("Playing audio...")
     play_obj = sa.play_buffer(audio_buffer, 1, 2, sample_rate)
     play_obj.wait_done()
-
-    if args.out is not None:
-        outfile = args.out
-    else:
-        outfile = f'cvm.wav'
 
     io.wavfile.write(outfile, sample_rate, audio_buffer)
