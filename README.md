@@ -23,7 +23,7 @@ In project 2, we added autotune functionality to the program.
 7. Finally, to use the program, run the following command and fill in the brackets with your desired values: <br/>
     ```python cvm.py -f [string] -a [string] -b [float] -s [float] -p [float] -d [int] -o [string]```
     <br/>-f represents the filename; enter it as `your_filename.wav`
-    <br/>-a represents the filename of the MIDI file you want to autotune your voice against; enter it as `midi_file.mid`
+    <br/>-a represents the scale you want to autotune your voice against; enter it as `TONIC:key` (e.g. C:maj for C major, C:min for C minor)
     <br/>-b represents the bass boost; enter any integer/decimal value
     <br/>-s represents the speed; enter any integer/decimal value greater than 0
     <br/>-p represents the pitch; enter any integer/decimal value
