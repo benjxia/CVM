@@ -45,7 +45,7 @@ def apply_kmeans(audio_np_array, num_clusters=2):
     # Reshape audio data to 2D array for clustering
     data_2d = audio_np_array.reshape(-1, 1)
 
-    # Apply K-means clustering
+    # Apply K-means clustering for audio quantization - essentially restricts audio intensities to several discrete values.
     kmeans = KMeans(n_clusters=num_clusters, random_state=0)
     kmeans.fit(data_2d)
 
