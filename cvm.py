@@ -152,11 +152,14 @@ def autotune(audio_data_float, sr):
     # pitch shifting
     return psola.vocode(audio_data_float, sample_rate=int(sr), target_pitch=smoothed_corrected_f0, fmin=fmin, fmax=fmax)
 
+def read_midi(filename: str):
+    pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-f', '--filename', type=str, help='Specify the file name. Must be a .wav file.', required=True)
+    parser.add_argument('-a', '--autotune', type=str, help='Specify filename of MIDI file to autotune your voice with')
     parser.add_argument('-b', '--bass', type=float,
                         help='Specify the constant to alter the bass of the track. Max: 50 to protect your own ears.')
     parser.add_argument('-s', '--speed', type=float,
@@ -164,8 +167,6 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--pitch', type=float, help='Specify the constant to shift the pitch of the track.')
     parser.add_argument('-d', '--deepfry', type=int, help='Specify the constant for deep fried mic.')
     parser.add_argument('-o', '--out', type=str, help='Specify filename to save edited audio with.')
-    parser.add_argument('-a', '--autotune', type=float, help='Specify the pitch (in Hz) to be tuned to.') # outdated: this was for my original implementation but it has changed since then
-
     args: argparse.Namespace = parser.parse_args()
 
     # Load audio file from
@@ -190,12 +191,12 @@ if __name__ == '__main__':
     if args.deepfry is not None:
         audio_buffer = apply_kmeans(audio_buffer, num_clusters=args.deepfry)
 
-    if args.autotune is not None:        
+    if args.autotune is not None:
         audio_data_float, sr = librosa.load(args.filename, sr=None, mono=False)
 
         if audio_data_float.ndim > 1:
             audio_data_float = audio_data_float[0, :]
-        
+
         filepath = Path(args.filename)
         # output_filepath = filepath.parent / (filepath.stem + "_autotune" + filepath.suffix)
         sf.write(str('test.wav'), autotune(audio_data_float, sr), sr)
