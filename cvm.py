@@ -133,22 +133,17 @@ def autotune(audio_data_float, sr):
     # calculate desired pitch
     # correct_pitch function
     corrected_f0 = np.zeros_like(f0)
-    for i in range(f0.shape[0]):
-        if (np.isnan(corrected_f0[i])):
-            corrected_f0[i] = np.nan
-        else:
-            degrees = librosa.key_to_degrees('C:min')
-            degrees = np.concatenate((degrees, [degrees[0] + 12]))
+    corrected_f0[np.isnan(corrected_f0)] = np.nan
+    degrees = librosa.key_to_degrees('C:min')
+    degrees = np.concatenate((degrees, [degrees[0] + 12]))
 
-            midi_note = librosa.hz_to_midi(f0[i])
-            degree = midi_note % 12
-            closest_degree_id = np.argmin(np.abs(degrees - degree))
+    midi_note = librosa.hz_to_midi(f0)
+    degree = midi_note % 12
+    closest_degree_id = np.argmin(np.abs(degrees[None, :] - degree[:, None]), axis=1)
+    degree_difference = degree - degrees[closest_degree_id]
 
-            degree_difference = degree - degrees[closest_degree_id]
-
-            midi_note -= degree_difference
-
-            corrected_f0[i] = librosa.midi_to_hz(midi_note)
+    midi_note -= degree_difference
+    corrected_f0[~np.isnan(f0)] = librosa.midi_to_hz(midi_note)[~np.isnan(f0)]
 
     smoothed_corrected_f0 = signal.medfilt(corrected_f0, kernel_size=11)
 
@@ -202,8 +197,8 @@ if __name__ == '__main__':
             audio_data_float = audio_data_float[0, :]
         
         filepath = Path(args.filename)
-        output_filepath = filepath.parent / (filepath.stem + "_autotune" + filepath.suffix)
-        sf.write(str(output_filepath), autotune(audio_data_float, sr), sr)
+        # output_filepath = filepath.parent / (filepath.stem + "_autotune" + filepath.suffix)
+        sf.write(str('test.wav'), autotune(audio_data_float, sr), sr)
 
     print("Playing audio...")
     play_obj = sa.play_buffer(audio_buffer, 1, 2, sample_rate)
