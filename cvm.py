@@ -149,6 +149,11 @@ if __name__ == '__main__':
 
     # Load audio file from
     sample_rate, audio_data = io.wavfile.read(args.filename)
+
+    # Convert to mono
+    if len(audio_data.shape) > 1:
+        audio_data = np.mean(audio_data, axis=1)
+
     audio_buffer: np.ndarray = audio_data.astype(np.int16)
 
     # Set file to save edited audio to. cvm.wav by default
